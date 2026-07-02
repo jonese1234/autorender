@@ -160,6 +160,8 @@ Render clients are the machines that actually run Portal 2 and record the videos
    };
    ```
 
+   Also add your domain to the `--allow-net` list of the `compile` task in [`src/client/deno.json`](./src/client/deno.json) — the compiled binary's Deno network permissions are fixed at compile time, and a domain missing from that list causes a permission error when the client connects.
+
 2. **Compile the client binaries** (on any machine with [Deno](https://deno.com) installed, from the repo root):
 
    ```bash
