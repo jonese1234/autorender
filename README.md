@@ -268,6 +268,8 @@ The project contains convenient tasks which can be executed with `deno task <nam
 
 ## Production
 
+> Self-hosting with Coolify? See the dedicated guide: [DEPLOY_COOLIFY.md](./DEPLOY_COOLIFY.md)
+
 ### Server
 
 On the production system the project folder structure will look similar to `docker/volumes` since all source files in

@@ -1,6 +1,21 @@
 .git/
 .github/
-docker/
+# Keep docker/volumes/initdb and docker/volumes/storage/files in the build
+# context (baked into images, see Dockerfile), exclude runtime data only.
+docker/compose/
+docker/volumes/backups/
+docker/volumes/kv/
+docker/volumes/logs/
+docker/volumes/mysql/
+docker/volumes/ssl/
+docker/volumes/storage/demos/
+docker/volumes/storage/inputs/
+docker/volumes/storage/previews/
+docker/volumes/storage/thumbnails/
+docker/volumes/storage/users/
+docker/volumes/storage/videos/
+docker/volumes/.env*
+docker/volumes/entrypoint*
 src/client/bin/
 
 # from .gitignore
