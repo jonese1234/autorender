@@ -28,6 +28,11 @@ const metaNames: (keyof RouteMeta)[] = [
   'twitter:card',
 ];
 
+// Allow media to be loaded from the S3 bucket, e.g. Hetzner Object Storage.
+const s3Host = Deno.env.get('S3_ENABLED')?.toLowerCase() === 'true'
+  ? ` ${Deno.env.get('S3_BUCKET')}.${new URL(Deno.env.get('S3_ENDPOINT')!).host}`
+  : '';
+
 const getCSP = (nonce: string) => {
   return [
     `default-src 'self';`,
@@ -35,8 +40,8 @@ const getCSP = (nonce: string) => {
     `style-src-elem 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https:;`,
     `style-src 'nonce-${nonce}';`,
     `font-src 'self' https://fonts.gstatic.com;`,
-    `media-src 'self' https://autorender.portal2.sr blob: *.backblazeb2.com *.b-cdn.net;`,
-    `img-src 'self' https://autorender.portal2.sr data: cdn.discordapp.com *.backblazeb2.com *.b-cdn.net;`,
+    `media-src 'self' https://autorender.portal2.sr blob: *.backblazeb2.com *.b-cdn.net${s3Host};`,
+    `img-src 'self' https://autorender.portal2.sr data: cdn.discordapp.com *.backblazeb2.com *.b-cdn.net${s3Host};`,
     `object-src 'none';`,
     `base-uri 'none';`,
   ].join(' ');
