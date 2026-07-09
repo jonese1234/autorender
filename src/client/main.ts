@@ -46,7 +46,7 @@ const state: ClientState = {
   payloads: [],
 };
 
-let idleTimer: number | null = null;
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Worker thread for connecting to the server.
 const worker = new Worker(new URL('./worker.ts', import.meta.url).href, {

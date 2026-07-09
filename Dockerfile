@@ -27,6 +27,9 @@ RUN apk update
 RUN apk upgrade
 RUN apk add --no-cache ffmpeg
 
+# Seed files for /storage/files, copied on startup (see docker-compose.coolify.yml).
+ADD docker/volumes/storage/files /seed/storage/files
+
 WORKDIR /shared
 ADD src/shared .
 
@@ -36,3 +39,8 @@ ADD src/server .
 RUN deno install --entrypoint main.ts tasks/stale.ts tasks/board.ts tasks/processing.ts
 
 CMD ["sh", "./entrypoint.sh"]
+
+# database
+
+FROM mariadb:11 AS database
+COPY docker/volumes/initdb /docker-entrypoint-initdb.d

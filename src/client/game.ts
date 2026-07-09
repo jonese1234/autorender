@@ -226,7 +226,7 @@ export const prepareGameLaunch = async (
 export class GameProcess {
   process: Deno.ChildProcess | null = null;
   processName = '';
-  timeout: number | null = null;
+  timeout: ReturnType<typeof setTimeout> | null = null;
   autoexecFile = '';
   killed = false;
 

@@ -209,7 +209,7 @@ There are several demo files in `src/server/tests/demos` which can be used for t
 
 > NOTE: Optional.
 
-Since mel.board.portal2.sr and the new v3 API it is possible to send the autorender result directly to the leaderboard.
+Since mel.portal2.jonesy.moe and the new v3 API it is possible to send the autorender result directly to the leaderboard.
 Testing this locally requires a partial setup of the [board repository](https://github.com/NeKzor/board). A build of the
 board image is not required since it will be pulled from
 [Docker Hub](https://hub.docker.com/repository/docker/p2sr/mel-board).
@@ -267,6 +267,8 @@ The project contains convenient tasks which can be executed with `deno task <nam
 | `prod:update`            | Updates Docker images, syncs files and restarts containers.         |
 
 ## Production
+
+> Self-hosting with Coolify? See the dedicated guide: [DEPLOY_COOLIFY.md](./DEPLOY_COOLIFY.md)
 
 ### Server
 

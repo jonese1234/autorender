@@ -1,0 +1,145 @@
+# Coolify deployment stack for autorender.
+#
+# Differences from the docker/compose/* files:
+#   - No nginx proxy: Coolify's Traefik terminates TLS and routes the domain to the
+#     server container. Static storage files are served by the server itself via
+#     AUTORENDER_SERVE_STORAGE=true.
+#   - No mounted .env / entrypoint.sh files: all configuration is passed as container
+#     environment variables (Deno's --env-file tolerates a missing .env file and real
+#     environment variables always take precedence).
+#   - Named volumes instead of host bind mounts, so redeploys never touch data.
+#   - The database image is built from this repo (Dockerfile target "database") so the
+#     schema init SQL is baked in and runs automatically on the first boot.
+#
+# Required environment variables (set in the Coolify UI, see DEPLOY_COOLIFY.md):
+#   AUTORENDER_PUBLIC_URI, DISCORD_USER_ID, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET,
+#   DISCORD_BOT_TOKEN, AUTORENDER_BOT_TOKEN, COOKIE_SECRET_KEY,
+#   MARIADB_ROOT_PASSWORD, MARIADB_PASSWORD
+
+services:
+  server:
+    build:
+      context: .
+      target: server
+    restart: always
+    # Expose the app port to Traefik (attach the public domain to this service).
+    expose:
+      - "8001"
+    command:
+      - sh
+      - -c
+      - >
+        mkdir -p /storage/demos /storage/files /storage/inputs /storage/previews
+        /storage/thumbnails /storage/users /storage/videos &&
+        cp -R /seed/storage/files/. /storage/files/ &&
+        exec deno task prod
+    environment:
+      HOT_RELOAD: "false"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8001"
+      SERVER_SSL_CERT: none
+      SERVER_SSL_KEY: none
+      DB_HOST: autorender.database
+      DB_PORT: "3307"
+      DB_USER: ${MARIADB_USER:-p2render}
+      DB_PASS: ${MARIADB_PASSWORD}
+      DB_NAME: ${MARIADB_DATABASE:-p2render}
+      DISCORD_USER_ID: ${DISCORD_USER_ID}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_BOARD_INTEGRATION_WEBHOOK_URL: ${DISCORD_BOARD_INTEGRATION_WEBHOOK_URL:-none}
+      AUTORENDER_PUBLIC_URI: ${AUTORENDER_PUBLIC_URI}
+      AUTORENDER_BOT_TOKEN: ${AUTORENDER_BOT_TOKEN}
+      AUTORENDER_SERVE_STORAGE: "true"
+      AUTORENDER_DEMOS_FOLDER: /storage/demos
+      AUTORENDER_FILES_FOLDER: /storage/files
+      AUTORENDER_DEMOS_INPUTS: /storage/inputs
+      AUTORENDER_VIDEOS_FOLDER: /storage/videos
+      AUTORENDER_PREVIEWS_FOLDER: /storage/previews
+      AUTORENDER_THUMBNAILS_FOLDER: /storage/thumbnails
+      AUTORENDER_USERS_FOLDER: /storage/users
+      AUTORENDER_MAX_DEMO_FILE_SIZE: ${AUTORENDER_MAX_DEMO_FILE_SIZE:-6}
+      AUTORENDER_MAX_VIDEO_FILE_SIZE: ${AUTORENDER_MAX_VIDEO_FILE_SIZE:-350}
+      AUTORENDER_RUN_DEMO_REPAIR: "true"
+      AUTORENDER_RUN_SKIP_COOP_VIDEOS_CHECK: "true"
+      COOKIE_SECRET_KEY: ${COOKIE_SECRET_KEY}
+      BOARD_DOMAIN: ${BOARD_DOMAIN:-none}
+      BOARD_API_TOKEN: ${BOARD_API_TOKEN:-none}
+      MEL_BOARD_DOMAIN: ${MEL_BOARD_DOMAIN:-none}
+      MEL_BOARD_API_TOKEN: ${MEL_BOARD_API_TOKEN:-none}
+      BUNNY_CDN_VIDEOS_API_KEY: ${BUNNY_CDN_VIDEOS_API_KEY:-none}
+      BUNNY_CDN_VIDEOS_PULL_ZONE: ${BUNNY_CDN_VIDEOS_PULL_ZONE:-none}
+      BUNNY_CDN_VIDEOS_LIBRARY_ID: ${BUNNY_CDN_VIDEOS_LIBRARY_ID:-none}
+      B2_ENABLED: ${B2_ENABLED:-false}
+      B2_BUCKET_ID: ${B2_BUCKET_ID:-none}
+      B2_KEY_ID: ${B2_KEY_ID:-none}
+      B2_KEY_NAME: ${B2_KEY_NAME:-none}
+      B2_APP_KEY: ${B2_APP_KEY:-none}
+      USER_AGENT: autorender-server/1.0.0
+    volumes:
+      - storage:/storage
+      - server-logs:/logs/server
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      default:
+        # The Deno tasks pin network permissions to these hostnames, keep them.
+        aliases:
+          - autorender.server
+
+  bot:
+    build:
+      context: .
+      target: bot
+    restart: always
+    command: ["deno", "task", "prod"]
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      # The bot application is the same Discord application as the OAuth client.
+      DISCORD_BOT_ID: ${DISCORD_CLIENT_ID}
+      AUTORENDER_BASE_API: http://autorender.server:8001
+      AUTORENDER_PUBLIC_URI: ${AUTORENDER_PUBLIC_URI}
+      AUTORENDER_CONNECT_URI: ws://autorender.server:8001/connect/bot
+      AUTORENDER_PROTOCOL: autorender-v1
+      AUTORENDER_BOT_TOKEN: ${AUTORENDER_BOT_TOKEN}
+      USER_AGENT: autorender-bot/1.0.0
+    volumes:
+      - bot-kv:/kv
+      - bot-logs:/logs/bot
+    depends_on:
+      - server
+
+  database:
+    build:
+      context: .
+      target: database
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_USER: ${MARIADB_USER:-p2render}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-p2render}
+      # The server's Deno tasks pin network permissions to autorender.database:3307.
+      MYSQL_TCP_PORT: "3307"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 15s
+    volumes:
+      - mysql:/var/lib/mysql
+      - backups:/backups
+    networks:
+      default:
+        aliases:
+          - autorender.database
+
+volumes:
+  storage:
+  server-logs:
+  bot-kv:
+  bot-logs:
+  mysql:
+  backups:
