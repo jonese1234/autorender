@@ -35,7 +35,7 @@ Deno.test('Upload test video to s3', async () => {
     key,
     contents,
     contentType: 'video/mp4',
-    contentDisposition: `attachment; filename="${encodeURIComponent(getVideoDownloadFilename(video))}"`,
+    contentDisposition: `inline; filename="${encodeURIComponent(getVideoDownloadFilename(video))}"`,
   });
 
   const videoUrl = s3.getObjectUrl(key);

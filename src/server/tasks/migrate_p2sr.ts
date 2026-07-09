@@ -479,7 +479,8 @@ const migrate = async () => {
               key: fileName,
               contents: await Deno.readFile(videoPath),
               contentType: 'video/mp4',
-              contentDisposition: `attachment; filename="${
+              // NOTE: 'inline' so that the video plays in the browser.
+              contentDisposition: `inline; filename="${
                 encodeURIComponent(getVideoDownloadFilename({ title, file_name: title.endsWith('.dem') ? title : '' }))
               }"`,
             });

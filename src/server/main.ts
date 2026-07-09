@@ -660,7 +660,8 @@ apiV1
           key: fileName,
           contents: fileContents,
           contentType: 'video/mp4',
-          contentDisposition: `attachment; filename="${encodeURIComponent(getVideoDownloadFilename(video))}"`,
+          // NOTE: 'inline' so that the video plays in the browser.
+          contentDisposition: `inline; filename="${encodeURIComponent(getVideoDownloadFilename(video))}"`,
         });
 
         videoUrl = s3.getObjectUrl(fileName);
