@@ -71,6 +71,7 @@ import { loadMoreSearch } from './app/views/Search.tsx';
 import { loadMoreProfile } from './app/views/Profile.tsx';
 import { parseSortableId } from './app/utils.ts';
 import { BunnyClient } from './bunny.ts';
+import { S3Client } from './s3.ts';
 
 const SERVER_HOST = Deno.env.get('SERVER_HOST')!;
 const SERVER_PORT = parseInt(Deno.env.get('SERVER_PORT')!, 10);
@@ -107,6 +108,7 @@ const BUNNY_CDN_VIDEOS_API_KEY = Deno.env.get('BUNNY_CDN_VIDEOS_API_KEY')!;
 const BUNNY_CDN_VIDEOS_PULL_ZONE = Deno.env.get('BUNNY_CDN_VIDEOS_PULL_ZONE')!;
 const BUNNY_CDN_VIDEOS_LIBRARY_ID = parseInt(Deno.env.get('BUNNY_CDN_VIDEOS_LIBRARY_ID')!, 10);
 const B2_BUCKET_ID = Deno.env.get('B2_BUCKET_ID')!;
+const S3_ENABLED = Deno.env.get('S3_ENABLED')?.toLowerCase() === 'true';
 const BOARD_INTEGRATION_START_DATE = '2023-08-25';
 const AUTORENDER_RUN_DEMO_REPAIR = Deno.env.get('AUTORENDER_RUN_DEMO_REPAIR')?.toLowerCase() === 'true';
 const AUTORENDER_SERVE_STORAGE = Deno.env.get('AUTORENDER_SERVE_STORAGE');
@@ -180,6 +182,21 @@ if (B2_ENABLED) {
   });
 } else {
   logger.info('⚠️  Connection to b2 disabled. Using directory to store videos.');
+}
+
+const s3 = S3_ENABLED
+  ? new S3Client({
+    userAgent: Deno.env.get('USER_AGENT')!,
+    endpoint: Deno.env.get('S3_ENDPOINT')!,
+    region: Deno.env.get('S3_REGION')!,
+    bucket: Deno.env.get('S3_BUCKET')!,
+    accessKey: Deno.env.get('S3_ACCESS_KEY')!,
+    secretKey: Deno.env.get('S3_SECRET_KEY')!,
+  })
+  : null;
+
+if (s3) {
+  logger.info('Using S3 object storage for videos');
 }
 
 const cdn = new BunnyClient(Deno.env.get('USER_AGENT')!);
@@ -636,7 +653,24 @@ apiV1
       let thumbnailUrlLarge = null;
       let thumbnailUrlSmall = null;
 
-      if (B2_ENABLED) {
+      if (s3) {
+        const fileContents = await Deno.readFile(filePath);
+
+        const upload = await s3.putObject({
+          key: fileName,
+          contents: fileContents,
+          contentType: 'video/mp4',
+          contentDisposition: `attachment; filename="${encodeURIComponent(getVideoDownloadFilename(video))}"`,
+        });
+
+        videoUrl = s3.getObjectUrl(fileName);
+        videoSize = fileContents.byteLength;
+        // The object key doubles as the external ID so that the
+        // processing task deletes the local file afterwards.
+        videoExternalId = fileName;
+
+        logger.info('Uploaded', filePath, upload, videoUrl);
+      } else if (B2_ENABLED) {
         // TODO: Use implementation from jsr:@nekz/b2
         // if (video.video_external_id) {
         //   await b2.deleteFileVersion({ fileId: video.video_external_id });

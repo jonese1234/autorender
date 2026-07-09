@@ -110,6 +110,7 @@ Coolify detects the `${...}` placeholders from the compose file and lists them u
 | `AUTORENDER_MAX_DEMO_FILE_SIZE`                   | `6` (MB)           | Max demo upload size                           |
 | `AUTORENDER_MAX_VIDEO_FILE_SIZE`                  | `350` (MB)         | Max video upload size                          |
 | `B2_ENABLED` + `B2_BUCKET_ID`/`B2_KEY_ID`/`B2_KEY_NAME`/`B2_APP_KEY` | disabled | Store finished videos on Backblaze B2 instead of local disk |
+| `S3_ENABLED` + `S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET`/`S3_ACCESS_KEY`/`S3_SECRET_KEY` | disabled | Store finished videos on S3-compatible object storage (e.g. Hetzner) instead of local disk — see [Video storage on Hetzner Object Storage](#video-storage-on-hetzner-object-storage) |
 | `BUNNY_CDN_VIDEOS_*`                              | disabled           | Bunny CDN video hosting                        |
 | `BOARD_*` / `MEL_BOARD_*`                         | disabled           | board.portal2.sr leaderboard integration       |
 | `DISCORD_BOARD_INTEGRATION_WEBHOOK_URL`           | disabled           | Webhook for board render notifications         |
@@ -212,7 +213,55 @@ Dumps land in the `backups` named volume. Also consider:
 
 ### Disk usage
 
-Finished videos accumulate in the `storage` volume. The original production setup uploaded videos to Backblaze B2 (`B2_ENABLED=true`), after which the local copies are cleaned by the processing task, keeping only thumbnails/previews locally. Recommended once traffic is non-trivial.
+Finished videos accumulate in the `storage` volume. The original production setup uploaded videos to Backblaze B2 (`B2_ENABLED=true`), after which the local copies are cleaned by the processing task, keeping only thumbnails/previews locally. Recommended once traffic is non-trivial. This fork also supports any S3-compatible provider — see the next section.
+
+### Video storage on Hetzner Object Storage
+
+With `S3_ENABLED=true` the server uploads every finished render to an S3-compatible bucket and stores the bucket URL as the video URL. The processing task then deletes the local copy after generating the thumbnail/preview, so the `storage` volume only holds demos, thumbnails and previews. Videos rendered *before* enabling S3 stay on local disk and keep being served by the server.
+
+1. In the [Hetzner Cloud Console](https://console.hetzner.cloud) → **Object Storage** → **Create Bucket**:
+   - Location: e.g. `fsn1` (Falkenstein), `nbg1` (Nuremberg) or `hel1` (Helsinki).
+   - Name: e.g. `auto-render` — S3 bucket names must be lowercase (uppercase letters are not allowed).
+   - Visibility: **Public** — video URLs are served directly from the bucket, so objects must be publicly readable.
+2. Generate S3 credentials under **Security** → **S3 credentials** (access key + secret key).
+3. Set the environment variables in the Coolify UI:
+
+   | Variable        | Value                                                    |
+   | --------------- | -------------------------------------------------------- |
+   | `S3_ENABLED`    | `true`                                                   |
+   | `S3_ENDPOINT`   | `https://fsn1.your-objectstorage.com` (match the bucket's location) |
+   | `S3_REGION`     | `fsn1` (the location name is the signing region)         |
+   | `S3_BUCKET`     | `auto-render`                                            |
+   | `S3_ACCESS_KEY` | The generated access key                                 |
+   | `S3_SECRET_KEY` | The generated secret key                                 |
+
+4. Redeploy. The server logs `Using S3 object storage for videos` at startup, and new renders get URLs like `https://auto-render.fsn1.your-objectstorage.com/<share_id>.mp4`.
+
+Notes:
+
+- Deleting a video on the platform only unlinks it (soft delete) — the object stays in the bucket, same as the original B2 behavior.
+- Hetzner Object Storage is billed per bucket and includes 1 TB of storage and 1 TB of egress; check the [pricing page](https://www.hetzner.com/storage/object-storage) for overage costs.
+
+### Migrating existing videos
+
+`deno task migrate` moves already rendered videos into the bucket. Run it inside the **server container** (Coolify → resource → `server` → Terminal) after enabling S3:
+
+```bash
+# Sanity check: shows what would be migrated, writes nothing
+deno task migrate --dry-run
+
+# Migrate videos stored in the local storage volume (uploads, repoints the
+# video URL, deletes the local file)
+deno task migrate
+
+# Also mirror videos hosted on an external CDN (e.g. the old instance's
+# Bunny CDN after a MIGRATION.md phase-1 run) into the bucket
+deno task migrate --remote
+```
+
+Flags: `--dry-run` (report only), `--keep-local` (don't delete local files after upload), `--remote` (also mirror externally hosted videos).
+
+The task is safe to interrupt and re-run — migrated rows point at the bucket and are not selected again. Locally stored videos that the processing task hasn't finished yet (`processed = 0`) are skipped and picked up on the next run. Mirrored `--remote` videos get their thumbnails/previews regenerated by the processing task, which also removes the temporary local download afterwards.
 
 ## Troubleshooting
 
