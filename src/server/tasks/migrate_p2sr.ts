@@ -22,10 +22,14 @@
  *   --dry-run          Crawl and parse but do not write to the database.
  *   --demos            Download demo files into the demos folder and parse
  *                      them to fill all demo_* columns precisely.
- *   --videos           Download video files into the videos folder and point
- *                      video_url at this instance. Sets processed=0 so that
- *                      `deno task processing` regenerates thumbnails/previews
- *                      locally. WARNING: needs a lot of disk space.
+ *   --videos           Mirror video files from the old site. With S3 enabled
+ *                      (S3_ENABLED=true) each video is uploaded to the bucket
+ *                      and video_url points at the bucket; the local copy is
+ *                      kept only until `deno task processing` regenerates
+ *                      thumbnails/previews from it and deletes it. Without S3
+ *                      the videos stay in the videos folder and video_url
+ *                      points at this instance. WARNING: without S3 this
+ *                      needs a lot of disk space.
  *   --max-pages=N      Stop crawling the listing after N pages (16 videos per
  *                      page). Useful for testing.
  *   --max-videos=N     Stop after migrating N new videos.
